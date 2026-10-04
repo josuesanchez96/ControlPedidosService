@@ -1,0 +1,269 @@
+openapi: 3.1.0
+info:
+  title: API de Control de Pedidos
+  version: 1.0.0
+  description: >
+    API RESTful robusta para la gestión e itinerancia de pedidos. 
+    Soporta operaciones protegidas mediante autenticación Bearer Token, 
+    creación de pedidos idempotentes, paginación de resultados y 
+    control estricto de acceso basado en propiedad (Ownership Authorization).
+
+servers:
+  - url: http://localhost:3000
+    description: Servidor Local de Desarrollo
+
+security:
+  - BearerAuth: []
+
+paths:
+  /pedidos:
+    get:
+      summary: Obtener lista paginada de pedidos del usuario autenticado
+      description: Retorna una colección de pedidos correspondientes únicamente al usuario autenticado, soportando parámetros de paginación.
+      operationId: getPedidos
+      parameters:
+        - name: page
+          in: query
+          description: Número de página a consultar (1-indexed)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Cantidad máxima de registros por página
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 5
+      responses:
+        '200':
+          description: Lista paginada de pedidos obtenida exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrdersResponse'
+        '401':
+          description: No autorizado (Token ausente o inválido).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Crear un nuevo pedido (Operación Idempotente)
+      description: >
+        Crea un nuevo pedido asociado al usuario autenticado. 
+        Requiere el encabezado `Idempotency-Key` para prevenir procesamientos duplicados.
+      operationId: createPedido
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Clave única por solicitud para garantzar idempotencia.
+          schema:
+            type: string
+            example: "idemp-key-uuid-12345"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Pedido creado exitosamente o retornado desde caché de idempotencia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Solicitud incorrecta (Datos requeridos faltantes o encabezado de idempotencia ausente).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autorizado (Token ausente o inválido).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /pedidos/{id}:
+    get:
+      summary: Obtener los detalles de un pedido específico
+      description: Retorna la información completa de un pedido si pertenece al usuario autenticado.
+      operationId: getPedidoById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador único del pedido
+          schema:
+            type: string
+            example: "ord-seed-001"
+      responses:
+        '200':
+          description: Pedido encontrado y retornado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          description: No autorizado (Token ausente o inválido).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Acceso Prohibido (El pedido pertenece a otro usuario).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Recurso no encontrado (El pedido especificado no existe).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Autenticación mediante Tokens simulados (`token-user-1`, `token-user-2`).
+
+  schemas:
+    OrderItem:
+      type: object
+      required:
+        - producto
+        - cantidad
+        - precioUnitario
+      properties:
+        producto:
+          type: string
+          example: "Monitor Gamer 27\""
+        cantidad:
+          type: integer
+          minimum: 1
+          example: 1
+        precioUnitario:
+          type: number
+          minimum: 0.01
+          example: 350.00
+
+    Order:
+      type: object
+      required:
+        - id
+        - userId
+        - items
+        - direccionEnvio
+        - total
+        - estado
+        - createdAt
+      properties:
+        id:
+          type: string
+          example: "ord-seed-001"
+        userId:
+          type: string
+          example: "user-1"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        direccionEnvio:
+          type: string
+          example: "Calle Principal 123, Ciudad"
+        notas:
+          type: string
+          example: "Entregar en horario de oficina"
+        total:
+          type: number
+          example: 350.00
+        estado:
+          type: string
+          enum: [PENDIENTE, PROCESANDO, ENVIADO, CANCELADO]
+          example: "PENDIENTE"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-03T20:00:00.000Z"
+
+    CreateOrderRequest:
+      type: object
+      required:
+        - items
+        - direccionEnvio
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        direccionEnvio:
+          type: string
+          example: "Av. Roosevelt 789, San Salvador"
+        notas:
+          type: string
+          example: "Llamar antes de entregar"
+
+    PaginationMeta:
+      type: object
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 5
+        total:
+          type: integer
+          example: 10
+        totalPages:
+          type: integer
+          example: 2
+
+    PaginatedOrdersResponse:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          example: "Unauthorized"
+        message:
+          type: string
+          example: "Token de autenticación ausente o inválido"
+        details:
+          type: array
+          items:
+            type: string
+          example: ["El campo 'direccionEnvio' es obligatorio"]

@@ -1,0 +1,568 @@
+{
+  "info": {
+    "_postman_id": "8f2e1a3b-4c5d-6e7f-8a9b-0c1d2e3f4a5b",
+    "name": "ControlPedidos API Test Suite - Rubrica QA",
+    "description": "Colección automatizada de pruebas para la API de Pedidos siguiendo la especificación OpenAPI 3.1.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "TC01 - Crear Pedido Válido",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "// Generar clave de idempotencia única si no existe",
+              "if (!pm.environment.get('idempotency_key')) {",
+              "    pm.environment.set('idempotency_key', 'idemp-key-' + Date.now());",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC01 - Status code is 201 Created', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('TC01 - Validar estructura y datos del pedido creado', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('id');",
+              "    pm.expect(jsonData.userId).to.eql('user-1');",
+              "    pm.expect(jsonData.total).to.eql(90);",
+              "    pm.expect(jsonData.estado).to.eql('PENDIENTE');",
+              "    // Guardar ID dinámico en el entorno de Postman",
+              "    pm.environment.set('current_order_id', jsonData.id);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"producto\": \"Teclado RGB\",\n      \"cantidad\": 2,\n      \"precioUnitario\": 45.00\n    }\n  ],\n  \"direccionEnvio\": \"Calle 10 #45\",\n  \"notas\": \"Urgente\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pedidos",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"]
+        }
+      }
+    },
+    {
+      "name": "TC02 - Verificación Posterior de Cambio (GET por ID)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC02 - Status code is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('TC02 - El pedido retornado coincide con el creado en TC01', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.id).to.eql(pm.environment.get('current_order_id'));",
+              "    pm.expect(jsonData.userId).to.eql('user-1');",
+              "    pm.expect(jsonData.total).to.eql(90);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pedidos/{{current_order_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos", "{{current_order_id}}"]
+        }
+      }
+    },
+    {
+      "name": "TC03 - Datos Inválidos / Campos Obligatorios",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC03 - Status code is 400 Bad Request', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('TC03 - Mensaje de error indica campos requeridos faltantes', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.error).to.eql('Bad Request');",
+              "    pm.expect(jsonData.details).to.be.an('array');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "key-invalid-01",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"direccionEnvio\": \"Calle Falsa 123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pedidos",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"]
+        }
+      }
+    },
+    {
+      "name": "TC04 - Ausencia de Credenciales",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC04 - Status code is 401 Unauthorized', function () {",
+              "    pm.response.to.have.status(401);",
+              "});",
+              "",
+              "pm.test('TC04 - Error de autenticación ausente', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.error).to.eql('Unauthorized');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/pedidos",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"]
+        }
+      }
+    },
+    {
+      "name": "TC05 - Invalidez de Credenciales",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC05 - Status code is 401 Unauthorized', function () {",
+              "    pm.response.to.have.status(401);",
+              "});",
+              "",
+              "pm.test('TC05 - Token inválido rechazado', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.error).to.eql('Unauthorized');",
+              "    pm.expect(jsonData.message).to.include('inválido');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer token-falso-xyz123",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "test-key-tc05",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [{\"producto\": \"Mouse\", \"cantidad\": 1, \"precioUnitario\": 10}],\n  \"direccionEnvio\": \"Test\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pedidos",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"]
+        }
+      }
+    },
+    {
+      "name": "TC06 - Acceso a Recurso Ajeno (Ownership Check)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC06 - Status code is 403 Forbidden', function () {",
+              "    pm.response.to.have.status(403);",
+              "});",
+              "",
+              "pm.test('TC06 - User B no puede consultar pedido de User A', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.error).to.eql('Forbidden');",
+              "    pm.expect(jsonData.message).to.include('No tienes permisos');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user2}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pedidos/{{current_order_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos", "{{current_order_id}}"]
+        }
+      }
+    },
+    {
+      "name": "TC07 - Recurso Inexistente",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC07 - Status code is 404 Not Found', function () {",
+              "    pm.response.to.have.status(404);",
+              "});",
+              "",
+              "pm.test('TC07 - Error Not Found retornado correctamente', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.error).to.eql('Not Found');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pedidos/ord-non-existent-99999",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos", "ord-non-existent-99999"]
+        }
+      }
+    },
+    {
+      "name": "TC08 - Paginación de Resultados",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC08 - Status code is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('TC08 - Estructura de paginación válida', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('data');",
+              "    pm.expect(jsonData).to.have.property('pagination');",
+              "    pm.expect(jsonData.data.length).to.be.at.most(2);",
+              "    pm.expect(jsonData.pagination.page).to.eql(1);",
+              "    pm.expect(jsonData.pagination.limit).to.eql(2);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pedidos?page=1&limit=2",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC09 - Repetición de Operación Idempotente",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC09 - Status code is 201 Created o cached response', function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});",
+              "",
+              "pm.test('TC09 - Reutiliza exacto ID de pedido sin duplicar creación', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.id).to.eql(pm.environment.get('current_order_id'));",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "{{idempotency_key}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"producto\": \"Teclado RGB\",\n      \"cantidad\": 2,\n      \"precioUnitario\": 45.00\n    }\n  ],\n  \"direccionEnvio\": \"Calle 10 #45\",\n  \"notas\": \"Urgente\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pedidos",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"]
+        }
+      }
+    },
+    {
+      "name": "TC10 - Validar Esquema de Éxito OpenAPI",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC10 - Status code is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('TC10 - Validación de Contrato PaginatedOrdersResponse', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.be.an('object');",
+              "    pm.expect(jsonData).to.have.property('data').that.is.an('array');",
+              "    pm.expect(jsonData).to.have.property('pagination').that.is.an('object');",
+              "    pm.expect(jsonData.pagination).to.have.all.keys('page', 'limit', 'total', 'totalPages');",
+              "    if (jsonData.data.length > 0) {",
+              "        var item = jsonData.data[0];",
+              "        pm.expect(item).to.have.property('id').that.is.a('string');",
+              "        pm.expect(item).to.have.property('userId').that.is.a('string');",
+              "        pm.expect(item).to.have.property('items').that.is.an('array');",
+              "        pm.expect(item).to.have.property('direccionEnvio').that.is.a('string');",
+              "        pm.expect(item).to.have.property('total').that.is.a('number');",
+              "        pm.expect(item).to.have.property('estado').that.is.a('string');",
+              "        pm.expect(item).to.have.property('createdAt').that.is.a('string');",
+              "    }",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/pedidos",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"]
+        }
+      }
+    },
+    {
+      "name": "TC11 - Validar Esquema de Error OpenAPI",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC11 - Status code is 400 Bad Request por falta de Idempotency-Key', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('TC11 - Validación de Contrato ErrorResponse', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.be.an('object');",
+              "    pm.expect(jsonData).to.have.property('error').that.is.a('string');",
+              "    pm.expect(jsonData).to.have.property('message').that.is.a('string');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [{\"producto\": \"Desk\", \"cantidad\": 1, \"precioUnitario\": 100}],\n  \"direccionEnvio\": \"Casa\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pedidos",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"]
+        }
+      }
+    },
+    {
+      "name": "TC12 - Validación de Negocio (Cantidad y Precio Positivos)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('TC12 - Status code is 400 Bad Request por datos negativos', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('TC12 - Array de detalles especifica el error de validación', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.error).to.eql('Bad Request');",
+              "    pm.expect(jsonData.details).to.be.an('array');",
+              "    pm.expect(jsonData.details.length).to.be.at.least(1);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "{{token_user1}}",
+            "type": "text"
+          },
+          {
+            "key": "Idempotency-Key",
+            "value": "key-neg-tc12",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [{\"producto\": \"Silla Ergonomica\", \"cantidad\": -2, \"precioUnitario\": -50}],\n  \"direccionEnvio\": \"Oficina 402\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/pedidos",
+          "host": ["{{base_url}}"],
+          "path": ["pedidos"]
+        }
+      }
+    }
+  ]
+}

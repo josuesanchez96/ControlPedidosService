@@ -1,0 +1,32 @@
+{
+  "name": "control-pedidos-service",
+  "version": "1.0.0",
+  "description": "API de Pedidos robusta con Express, TypeScript, Idempotencia y Autorización por Roles",
+  "main": "server.ts",
+  "scripts": {
+    "start": "npx tsx server.ts",
+    "dev": "npx tsx watch server.ts",
+    "build": "npx tsc"
+  },
+  "keywords": [
+    "express",
+    "typescript",
+    "postman",
+    "openapi",
+    "qa-automation",
+    "idempotency"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.7",
+    "tsx": "^4.9.3",
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,12 @@
+# Dependencias de Node
+node_modules/
+
+# Archivos de construcción y temporales
+dist/
+build/
+*.log
+
+# Archivos de entorno local y sistema operativo
+.env
+.DS_Store
+Thumbs.db
